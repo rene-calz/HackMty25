@@ -16,7 +16,6 @@ def MonteCarlo(Pr: float, sim=1000, N=100) -> float:
     
 def smart_cart(probabilities: list, costs: list, weights: list, MAX_WEIGHT: int, PASSENGERS: int) -> list:
 	# --- 1. Definition of data ---
-	# Listas para las restricciones
 	U = [MonteCarlo(i,N=PASSENGERS) for i in probabilities]
 
 	# --- 2. Calc of V_i ---
