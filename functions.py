@@ -5,10 +5,9 @@ import pandas as pd
 from datetime import datetime, date, time
 import forecast as fore
 from typing import Iterable, Tuple, List
-# Import models
 
 # Functions
-def MonteCarlo(Pr: float, sim=1000, N=100) -> float:
+def MonteCarlo(Pr: float, sim: int =1000, N: int = 100, percentil: int) -> float:
 
     points = []
 
@@ -17,7 +16,7 @@ def MonteCarlo(Pr: float, sim=1000, N=100) -> float:
         points.append(simulated_point)
     
    
-    return  np.percentile(points, 98)
+    return  np.percentile(points, int)
 
 def filter_1(flight_date: datetime, stock: pd.DataFrame) -> tuple:
 	usable_stock = stock[stock['expiration_date'] < flight_date]
@@ -252,7 +251,7 @@ def smart_cart(probabilities: list,
 							T_MAX: int = 420) -> list:
 	# --- 1. Definition of data ---
 	# Listas para las restricciones
-	U = [MonteCarlo(i,N=PASSENGERS) for i in probabilities]
+	U = [MonteCarlo(i,N=PASSENGERS, percentil=98) for i in probabilities]
 
 	# --- 2. Calc of V_i ---
 	# V_i = Pr(C_i) * Cost_i
