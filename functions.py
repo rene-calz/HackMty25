@@ -3,7 +3,7 @@ import pulp
 import numpy as np
 import pandas as pd
 from datetime import datetime, date, time
-
+import forecast as fore
 # Import models
 
 # Functions
@@ -90,7 +90,7 @@ def add_to_stock(stock: pd.DataFrame, addition: pd.DataFrame) -> pd.DataFrame:
 
 
 def probabilties_model(passangers: int, flight_date: datatime, product: str) -> float:
-	pass
+	return fore.get_sales_probability(product_id = product, target_date = flight_date)	
 
 def time_model(total_products: int, distinct_products: int) -> float:
 	pass
