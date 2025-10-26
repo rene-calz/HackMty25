@@ -228,8 +228,15 @@ def probabilties_model(passengers: int, flight_date: datetime, product: str, df:
 
 def time_model(total_products: int, distinct_products: int) -> float:
 	pass
-
-def smart_cart(probabilities: list, costs: list, weights: list, PASSENGERS: int, MAX_WEIGHTS = 90) -> list:
+	
+def smart_cart(probabilities: list, 
+							costs: list, 
+							weights: list, 
+							stock: list,
+							PASSENGERS: int,
+							MAX_WEIGHTS: int= 90,
+							T_MIN: int = 210,
+							T_MAX: int = 420) -> list:
 	# --- 1. Definition of data ---
 	# Listas para las restricciones
 	U = [MonteCarlo(i,N=PASSENGERS) for i in probabilities]
@@ -267,6 +274,15 @@ def smart_cart(probabilities: list, costs: list, weights: list, PASSENGERS: int,
 	weight_restriction = pulp.lpSum([weights[i] * variables_X[i] for i in range(n)])
 	problem += weight_restriction <= MAX_WEIGHT, "Weight restrinction"
 
+	# Restriction: Stock: X_i <= STOCK_i for each item
+	for i in range(n):
+		problem += variables_X[i] <= stock[i], f"Stock_Contraint_X_{i}"
+
+	# Restriction: Max time and min time
+	total_time = time_model(pulp.lpSum([variables_X[i] for i in range(n)]), n)
+	problem += total_time >= T_MIN, "Min_Time_Constraint"
+	problem += total_time <= T_MAX, "Max_Time_Contraint"
+
 	# --- 7. Solve the problem ---
 	print("\nSolving the problem...")
 	problem.solve()
@@ -281,4 +297,5 @@ def smart_cart(probabilities: list, costs: list, weights: list, PASSENGERS: int,
 					print(f"  {variables_X[i].name} = {pulp.value(variables_X[i])}")
 	else:
 			print("Could not find the solution: Problem non-factible.")
+
 
