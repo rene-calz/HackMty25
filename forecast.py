@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
-def get_sales_probability(product_id, target_date, df, passengers=None, model_params=None, forecast_days=14):
+def get_sales_probability(product_id, target_date, df, passengers=None, model_params=None, forecast_days=30):
     """
     Calculate the probability of a product being sold on a specific date.
 
@@ -246,3 +246,5 @@ if __name__ == "__main__":
     
     print("Sales Probability Function (with manual passenger input) Ready!")
     print("See docstring for usage examples.")
+
+

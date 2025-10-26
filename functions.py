@@ -5,28 +5,51 @@ import pandas as pd
 from datetime import datetime, date, time
 import forecast as fore
 from typing import Iterable, Tuple, List
-
+import joblib
 # Functions
-def MonteCarlo(Pr: float, sim: int =1000, N: int = 100, percentil: int) -> float:
+def MonteCarlo(Pr: float, sim: int = 1000, N: int = 100, percentil: int = 98) -> float:
+    """
+    Monte Carlo simulation for demand estimation.
+
+    Parameters:
+    -----------
+    Pr : float
+        Probability of sale (0.0 to 1.0)
+    sim : int
+        Number of simulations (default: 1000)
+    N : int
+        Number of passengers/trials (default: 100)
+    percentil : int
+        Percentile to return (default: 95)
+
+    Returns:
+    --------
+    float : Estimated demand at given percentile
+    """
+    if not 0 <= Pr <= 1:
+        raise ValueError("Probability must be between 0 and 1")
 
     points = []
-
     for _ in range(sim):
         simulated_point = np.random.binomial(N, Pr)
         points.append(simulated_point)
-    
-   
-    return  np.percentile(points, int)
+
+    # FIXED: Changed 'int' to 'percentil' (was using type instead of variable)
+    return np.percentile(points, percentil)
+
 
 def filter_1(flight_date: datetime, stock: pd.DataFrame) -> tuple:
-	usable_stock = stock[stock['expiration_date'] < flight_date]
+	usable_stock = stock[stock['expiration_date'] > flight_date]
 	tipo_of_useable_products = set(usable_stock['item_type'])
 	costs = []
 	weights = []
+	stock_per_tipo = []
 	for tipo in tipo_of_useable_products:
 		costs.append(usable_stock[usable_stock['item_type'] == tipo]['cost'].iloc[0])
 		weights.append(usable_stock[usable_stock['item_type'] == tipo]['weight'].iloc[0])
-	return (costs, weights, tipo_of_useable_products, usable_stock)
+		stock_per_tipo.append(usable_stock.loc[usable_stock['item_type'] == tipo, 'quantity'].sum())  
+
+	return (costs, weights, tipo_of_useable_products, usable_stock, stock_per_tipo)
 
 def filter_2(optimal: list, usable_stock: pd.DataFrame, flight_date: datetime) -> pd.DataFrame:
     """
@@ -55,7 +78,7 @@ def filter_2(optimal: list, usable_stock: pd.DataFrame, flight_date: datetime) -
         # Filtrar solo filas válidas (no vencidas)
         available_rows = usable_stock[
             (usable_stock['item_type'] == item_type) &
-            (usable_stock['expiration_date'] >= flight_date)
+            (usable_stock['expiration_date'] > flight_date)
         ].sort_values(by='expiration_date')
 
         for _, row in available_rows.iterrows():
@@ -67,10 +90,11 @@ def filter_2(optimal: list, usable_stock: pd.DataFrame, flight_date: datetime) -
 
             result_rows.append({
                 'item_type': row['item_type'],
+								'batch': row['batch'],
                 'expiration_date': row['expiration_date'],
                 'cost': row['cost'],
                 'weight': row['weight'],
-                'quantity_used': take_qty
+                'quantity': take_qty
             })
 
             required_qty -= take_qty
@@ -196,7 +220,7 @@ def add_to_stock(
     return result
 
 ## ----- Probability models -----
-def probabilities_model(passengers: int, flight_date: datetime, product: str, df: pd.DataFrame) -> float:
+def probabilities_model(passengers: int, flight_date: datetime, product: int, df: pd.DataFrame) -> float:
     """
     Calculate sales probability for a product given specific passenger count.
     
@@ -222,7 +246,7 @@ def probabilities_model(passengers: int, flight_date: datetime, product: str, df
             df=df,
             passengers=passengers  # Manual passenger input
         )
-        
+        print(result['probability'])
         return result['probability']
     
     except Exception as e:
@@ -230,18 +254,13 @@ def probabilities_model(passengers: int, flight_date: datetime, product: str, df
         return 0.0  # Return 0 probability on error
 
 def time_model(total_products: int, distinct_products: int, amount_drawer: int = 5) -> float:
-	pipeline = joblib.load('/home/rcalz/Documents/HackMTY25/RFRegressor.joblib')
-    model = pipeline['model']
-    encoder = pipeline['encoder']
-    feature_columns = pipeline['feature_columns']
-    
-    transformed_data = encoder.transform([total_products, distinct_products])
-    
-    prediction = model.predict(transformed_data)
-    
-    return amount_drawer*prediction[0]
+		pipeline = joblib.load('./RFRegressor.joblib')
+		model = pipeline['model']
+		prediction = model.predict(np.array([total_products, distinct_products]).reshape(1,-1))
+		return amount_drawer*prediction[0]
 	
-def smart_cart(probabilities: list, 
+def smart_cart(products: list, 
+							probabilities: list, 
 							costs: list, 
 							weights: list, 
 							stock: list,
@@ -284,16 +303,11 @@ def smart_cart(probabilities: list,
 
 	# Restriction: Σ(weight_i * X_i) <= MAX_WEIGHT
 	weight_restriction = pulp.lpSum([weights[i] * variables_X[i] for i in range(n)])
-	problem += weight_restriction <= MAX_WEIGHT, "Weight restrinction"
+	problem += weight_restriction <= MAX_WEIGHTS, "Weight restrinction"
 
 	# Restriction: Stock: X_i <= STOCK_i for each item
 	for i in range(n):
 		problem += variables_X[i] <= stock[i], f"Stock_Contraint_X_{i}"
-
-	# Restriction: Max time and min time
-	total_time = time_model(pulp.lpSum([variables_X[i] for i in range(n)]), n)
-	problem += total_time >= T_MIN, "Min_Time_Constraint"
-	problem += total_time <= T_MAX, "Max_Time_Contraint"
 
 	# --- 7. Solve the problem ---
 	print("\nSolving the problem...")
@@ -305,10 +319,15 @@ def smart_cart(probabilities: list,
 	if pulp.LpStatus[problem.status] == 'Optimal':
 			print(f"Optimal solution: {pulp.value(problem.objective)}")
 			print("\nOptimal values for X_i:")
+			optimal_combination = []
 			for i in range(n):
 					print(f"  {variables_X[i].name} = {pulp.value(variables_X[i])}")
+					optimal_combination.append((list(products)[i], pulp.value(variables_X[i])))
 	else:
-			print("Could not find the solution: Problem non-factible.")
+		print("Could not find the solution: Problem non-factible.")
+	
+	return optimal_combination
+
 
 def simulate_flight(passengers: int, flight_date: datetime, trolley_stock: pd.DataFrame) -> pd.DataFrame:
     """
@@ -340,7 +359,7 @@ def simulate_flight(passengers: int, flight_date: datetime, trolley_stock: pd.Da
     
     for _, row in trolley_stock.iterrows():
         item_type = row['item_type']
-        loaded_qty = row['quantity_used']
+        loaded_qty = row['quantity']
         
         # Get consumption probability for this item
         # Using the probabilities_model from your functions.py
