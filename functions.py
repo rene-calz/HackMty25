@@ -1,6 +1,10 @@
 # Imports
 import pulp
 import numpy as np
+import pandas as pd
+from datetime import datetime, date, time
+
+# Import models
 
 # Functions
 def MonteCarlo(Pr: float, sim=1000, N=100) -> float:
@@ -13,9 +17,37 @@ def MonteCarlo(Pr: float, sim=1000, N=100) -> float:
     
    
     return  np.percentile(points, 98)
-    
-def smart_cart(probabilities: list, costs: list, weights: list, MAX_WEIGHT: int, PASSENGERS: int) -> list:
+
+def filter_1(flight_date: datetime, stock: pd.DataFrame) -> tuple:
+	usable_stock = stock[stock['expiration_date'] < flight_date]
+	tipo_of_useable_products = set(usable_stock['item_type'])
+	costs = []
+	weights = []
+	for tipo in tipo_of_usable_products:
+		costs.append(usable_stock[usable_stock['item_type'] == tipo]['cost'].iloc[0])
+		weights.append(usable_stock[usable_stock['item_type'] == tipo]['weight'].iloc[0])
+	return (costs, weights, tipo_of_usable_products, usable_stock)
+
+
+def filter_2(optimal: list, usable_stock: pd.DataFrame, flight_date: datatime) -> pd.DataFrame: # Careful since optimal must be a list of tuples (type_prod, amount)
+	pass
+
+def remove_from_stock(stock: pd.DataFrame, trolley_stock: pd.DataFrame) -> pd.DataFrame:
+	pass
+
+def add_to_stock(stock: pd.DataFrame, addition: pd.DataFrame) -> pd.DataFrame:
+	pass
+
+
+def probabilties_model(passangers: int, flight_date: datatime, product: str) -> float:
+	pass
+
+def time_model(total_products: int, distinct_products: int) -> float:
+	pass
+
+def smart_cart(probabilities: list, costs: list, weights: list, PASSENGERS: int, MAX_WEIGHTS = 90) -> list:
 	# --- 1. Definition of data ---
+	# Listas para las restricciones
 	U = [MonteCarlo(i,N=PASSENGERS) for i in probabilities]
 
 	# --- 2. Calc of V_i ---
@@ -65,4 +97,5 @@ def smart_cart(probabilities: list, costs: list, weights: list, MAX_WEIGHT: int,
 					print(f"  {variables_X[i].name} = {pulp.value(variables_X[i])}")
 	else:
 			print("Could not find the solution: Problem non-factible.")
+
 
