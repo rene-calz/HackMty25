@@ -19,7 +19,7 @@ def main(stock: pd.DataFrame, flights: pd.DataFrame):
 
 		stock = func.remove_from_stock(stock, trolley_stock)
 
-		not_consumed_stock = func.simulate_flight(passengers, flight_date, trolley_stock)
+		not_consumed_stock = func.simulate_flight(flight_passengers, flight_date, trolley_stock, df=stock)
 
 		stock = func.add_to_stock(not_consumed_stock)
 
