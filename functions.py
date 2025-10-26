@@ -310,4 +310,65 @@ def smart_cart(probabilities: list,
 	else:
 			print("Could not find the solution: Problem non-factible.")
 
-
+def simulate_flight(passengers: int, flight_date: datetime, trolley_stock: pd.DataFrame) -> pd.DataFrame:
+    """
+    Simulate consumption during a flight based on probabilities and passenger behavior.
+    
+    Parameters
+    ----------
+    passengers : int
+        Number of passengers on the flight
+    flight_date : datetime
+        Date of the flight
+    trolley_stock : pd.DataFrame
+        Stock loaded onto the trolley for this flight.
+        Expected columns: ['item_type', 'expiration_date', 'cost', 'weight', 'quantity_used']
+    
+    Returns
+    -------
+    not_consumed_stock : pd.DataFrame
+        Items that were NOT consumed during the flight, ready to be added back to main stock.
+        Returns DataFrame with columns: ['item_type', 'batch', 'expiration_date', 
+                                         'cost', 'weight', 'quantity']
+    """
+    
+    if trolley_stock.empty:
+        return pd.DataFrame(columns=['item_type', 'batch', 'expiration_date', 
+                                     'cost', 'weight', 'quantity'])
+    
+    not_consumed_rows = []
+    
+    for _, row in trolley_stock.iterrows():
+        item_type = row['item_type']
+        loaded_qty = row['quantity_used']
+        
+        # Get consumption probability for this item
+        # Using the probabilities_model from your functions.py
+        # Note: You'll need to pass the appropriate DataFrame (df) here
+        # For simulation, we can use a random consumption based on typical airline sales rates
+        
+        # Simplified simulation: consume based on binomial distribution
+        # Probability of sale per item can be estimated or retrieved from your model
+        # For now, using a reasonable consumption rate (you can adjust this)
+        
+        # Average consumption rate in airline catering is typically 30-70%
+        # We'll use a binomial distribution to simulate actual consumption
+        base_probability = min(0.6, passengers / 200.0)  # Adjust based on your data
+        
+        # Simulate actual consumption
+        consumed_qty = np.random.binomial(int(loaded_qty), base_probability)
+        remaining_qty = loaded_qty - consumed_qty
+        
+        # If there are items left, add them to not_consumed stock
+        if remaining_qty > 0:
+            not_consumed_rows.append({
+                'item_type': item_type,
+                'batch': row.get('batch', f"{item_type}_{flight_date.strftime('%Y%m%d')}"),
+                'expiration_date': row['expiration_date'],
+                'cost': row['cost'],
+                'weight': row['weight'],
+                'quantity': remaining_qty
+            })
+    
+    not_consumed_stock = pd.DataFrame(not_consumed_rows)
+    return not_consumed_stock
