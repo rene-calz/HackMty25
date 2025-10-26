@@ -230,8 +230,17 @@ def probabilities_model(passengers: int, flight_date: datetime, product: str, df
         print(f"Error calculating probability for product {product}: {str(e)}")
         return 0.0  # Return 0 probability on error
 
-def time_model(total_products: int, distinct_products: int) -> float:
-	pass
+def time_model(total_products: int, distinct_products: int, amount_drawer: int = 5) -> float:
+	pipeline = joblib.load('/home/rcalz/Documents/HackMTY25/RFRegressor.joblib')
+    model = pipeline['model']
+    encoder = pipeline['encoder']
+    feature_columns = pipeline['feature_columns']
+    
+    transformed_data = encoder.transform([total_products, distinct_products])
+    
+    prediction = model.predict(transformed_data)
+    
+    return amount_drawer*prediction[0]
 	
 def smart_cart(probabilities: list, 
 							costs: list, 
