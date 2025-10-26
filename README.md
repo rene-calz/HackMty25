@@ -140,6 +140,7 @@ HackMTY2025/
 ├── functions.py                     # Core utility functions
 ├── forecast.py                      # Time series forecasting module
 ├── RFRegressor.joblib              # Pre-trained productivity model
+├── timeseriesAnalysis.ipynb         # Tests evaluated for the correct choosing of forecast model
 ├── stock.xlsx                      # Current inventory data
 ├── vuelos.xlsx                     # Flight schedule data
 ├── result_hack_filtrado_con_peso_precioA.xlsx  # Historical sales data
