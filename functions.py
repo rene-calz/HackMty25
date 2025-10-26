@@ -29,8 +29,58 @@ def filter_1(flight_date: datetime, stock: pd.DataFrame) -> tuple:
 	return (costs, weights, tipo_of_usable_products, usable_stock)
 
 
-def filter_2(optimal: list, usable_stock: pd.DataFrame, flight_date: datatime) -> pd.DataFrame: # Careful since optimal must be a list of tuples (type_prod, amount)
-	pass
+import pandas as pd
+from datetime import datetime
+
+def filter_2(optimal: list, usable_stock: pd.DataFrame, flight_date: datetime) -> pd.DataFrame:
+    """
+    Selecciona del stock los lotes necesarios para cumplir la combinación óptima de productos.
+    Prioriza los lotes con fecha de vencimiento más próxima (FIFO por vencimiento).
+
+    Parámetros
+    ----------
+    optimal : list of tuples
+        Lista de tuplas con formato [(item_type, amount), ...]
+    usable_stock : pd.DataFrame
+        Subconjunto del stock con columnas ['item_type', 'expiration_date', 'cost', 'weight', 'quantity', ...]
+    flight_date : datetime
+        Fecha del vuelo.
+    
+    Retorna
+    -------
+    trolley_stock : pd.DataFrame
+        DataFrame con las filas de stock a utilizar, incluyendo la cantidad tomada de cada lote.
+    """
+
+    result_rows = []
+
+    for item_type, required_qty in optimal:
+        # Lotes válidos del producto, ordenados por fecha de vencimiento
+        available_lots = usable_stock[
+            (usable_stock['item_type'] == item_type) &
+            (usable_stock['expiration_date'] >= flight_date)
+        ].sort_values(by='expiration_date')
+
+        for _, lot in available_lots.iterrows():
+            if required_qty <= 0:
+                break
+
+            available_qty = lot['quantity']
+            take_qty = min(required_qty, available_qty)
+
+            result_rows.append({
+                'item_type': item_type,
+                'expiration_date': lot['expiration_date'],
+                'cost': lot['cost'],
+                'weight': lot['weight'],
+                'quantity_used': take_qty
+            })
+
+            required_qty -= take_qty
+
+    trolley_stock = pd.DataFrame(result_rows)
+    return trolley_stock
+
 
 def remove_from_stock(stock: pd.DataFrame, trolley_stock: pd.DataFrame) -> pd.DataFrame:
 	pass
