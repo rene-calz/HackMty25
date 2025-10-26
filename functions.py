@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, date, time
 import forecast as fore
+from typing import Iterable, Tuple, List
 # Import models
 
 # Functions
@@ -23,10 +24,10 @@ def filter_1(flight_date: datetime, stock: pd.DataFrame) -> tuple:
 	tipo_of_useable_products = set(usable_stock['item_type'])
 	costs = []
 	weights = []
-	for tipo in tipo_of_usable_products:
+	for tipo in tipo_of_useable_products:
 		costs.append(usable_stock[usable_stock['item_type'] == tipo]['cost'].iloc[0])
 		weights.append(usable_stock[usable_stock['item_type'] == tipo]['weight'].iloc[0])
-	return (costs, weights, tipo_of_usable_products, usable_stock)
+	return (costs, weights, tipo_of_useable_products, usable_stock)
 
 def filter_2(optimal: list, usable_stock: pd.DataFrame, flight_date: datetime) -> pd.DataFrame:
     """
@@ -77,16 +78,126 @@ def filter_2(optimal: list, usable_stock: pd.DataFrame, flight_date: datetime) -
 
     trolley_stock = pd.DataFrame(result_rows)
     return trolley_stock
+## ----- Remove and add stock functions -----
+
+def _validate_columns(df: pd.DataFrame, needed: Iterable[str], df_name: str):
+    missing = [c for c in needed if c not in df.columns]
+    if missing:
+        raise ValueError(f"{df_name} is missing required columns: {missing}")
+
+def _normalize_keys(df: pd.DataFrame, key_cols: Tuple[str, ...], qty_col: str) -> pd.DataFrame:
+    """Aggregate by key_cols with summed quantity."""
+    return df.groupby(list(key_cols), dropna=False, as_index=False)[qty_col].sum()
 
 
+def remove_from_stock(
+    stock: pd.DataFrame,
+    trolley_stock: pd.DataFrame,
+    key_cols: Tuple[str, ...] = ("item_type", "batch"),
+    qty_col: str = "quantity"
+) -> pd.DataFrame:
+    """
+    Subtract quantities from general stock using the items assigned to the trolley.
 
-def remove_from_stock(stock: pd.DataFrame, trolley_stock: pd.DataFrame) -> pd.DataFrame:
-	pass
+    Behavior:
+    - If trolley specifies both 'item_type' and 'batch', subtract per-lot (exact match on keys).
+    - If trolley does NOT include 'batch' (e.g., “5 candies”), allocate that quantity across
+      available batches in stock for that item_type, depleting in ascending batch order.
+    - Negative results are clipped to zero; rows with zero quantity are removed.
+    """
+    # Stock must have item_type, batch, quantity
+    _validate_columns(stock, [*key_cols, qty_col], "stock")
+    _validate_columns(trolley_stock, [qty_col, "item_type"], "trolley_stock")
 
-def add_to_stock(stock: pd.DataFrame, addition: pd.DataFrame) -> pd.DataFrame:
-	pass
+    # Fast path: trolley has item_type & batch -> lot-for-lot subtraction
+    has_all_keys_in_trolley = all(k in trolley_stock.columns for k in key_cols)
+    if has_all_keys_in_trolley:
+        stock_agg   = _normalize_keys(stock, key_cols, qty_col)
+        trolley_agg = _normalize_keys(trolley_stock, key_cols, qty_col).rename(columns={qty_col: "trolley_qty"})
+
+        merged = stock_agg.merge(trolley_agg, on=list(key_cols), how="left")
+        merged["trolley_qty"] = merged["trolley_qty"].fillna(0)
+        merged[qty_col] = (merged[qty_col] - merged["trolley_qty"]).clip(lower=0)
+
+        result = (
+            merged.drop(columns=["trolley_qty"])
+                  .loc[merged[qty_col] > 0]
+                  .reset_index(drop=True)
+        )
+        return result
+
+    # Allocation path: trolley lacks 'batch' -> distribute per item_type across batches
+    # Prepare stock aggregated by (item_type, batch)
+    remaining = _normalize_keys(stock, key_cols, qty_col)
+
+    # Sum trolley by item_type only
+    trolley_simple = (
+        trolley_stock.groupby(["item_type"], dropna=False, as_index=False)[qty_col].sum()
+                     .rename(columns={qty_col: "trolley_qty"})
+    )
+
+    for _, r in trolley_simple.iterrows():
+        itype = r["item_type"]
+        need = float(r["trolley_qty"])
+        if need <= 0:
+            continue
+
+        # All batches for this item_type, deterministic order by 'batch'
+        mask = remaining["item_type"] == itype
+        pool_idx = remaining.index[mask]
+        if len(pool_idx) == 0:
+            continue  # nothing to remove for this item_type
+
+        # Sort those rows by batch asc and iterate in that order
+        pool_sorted = remaining.loc[pool_idx].sort_values(by=["batch"], ascending=True)
+        for idx, prow in pool_sorted.iterrows():
+            if need <= 0:
+                break
+            available = float(prow[qty_col])
+            if available <= 0:
+                continue
+
+            take = min(available, need)
+            remaining.at[idx, qty_col] = available - take
+            need -= take
+        # move to next item_type
+
+    # Clean up: no negatives; drop zero-quantity rows
+    remaining[qty_col] = remaining[qty_col].clip(lower=0)
+    final = remaining.loc[remaining[qty_col] > 0].reset_index(drop=True)
+    return final
 
 
+def add_to_stock(
+    stock: pd.DataFrame,
+    addition: pd.DataFrame,
+    key_cols: Tuple[str, ...] = ("item_type", "batch"),
+    qty_col: str = "quantity"
+) -> pd.DataFrame:
+    """
+    Adds (returns) remaining trolley items back into general stock.
+
+    Behavior:
+    - Treat (item_type, batch) as distinct lots.
+    - Quantities are summed when the same lot appears on both sides.
+    """
+    _validate_columns(stock,   [*key_cols, qty_col], "stock")
+    _validate_columns(addition, [*key_cols, qty_col], "addition")
+
+    stock_agg = _normalize_keys(stock, key_cols, qty_col)
+    add_agg   = _normalize_keys(addition, key_cols, qty_col).rename(columns={qty_col: "add_qty"})
+
+    merged = stock_agg.merge(add_agg, on=list(key_cols), how="outer")
+    merged[qty_col] = merged.get(qty_col, 0).fillna(0) + merged.get("add_qty", 0).fillna(0)
+
+    result = (
+        merged.drop(columns=["add_qty"])
+              .loc[merged[qty_col] > 0]
+              .reset_index(drop=True)
+    )
+    return result
+
+## ----- Probability models -----
 def probabilties_model(passengers: int, flight_date: datetime, product: str, df: pd.DataFrame = None) -> float:
     """
     Calculate sales probability for a product on a specific flight date.
@@ -170,5 +281,4 @@ def smart_cart(probabilities: list, costs: list, weights: list, PASSENGERS: int,
 					print(f"  {variables_X[i].name} = {pulp.value(variables_X[i])}")
 	else:
 			print("Could not find the solution: Problem non-factible.")
-
 
