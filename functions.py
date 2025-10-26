@@ -28,51 +28,48 @@ def filter_1(flight_date: datetime, stock: pd.DataFrame) -> tuple:
 		weights.append(usable_stock[usable_stock['item_type'] == tipo]['weight'].iloc[0])
 	return (costs, weights, tipo_of_usable_products, usable_stock)
 
-
-import pandas as pd
-from datetime import datetime
-
 def filter_2(optimal: list, usable_stock: pd.DataFrame, flight_date: datetime) -> pd.DataFrame:
     """
-    Selecciona del stock los lotes necesarios para cumplir la combinación óptima de productos.
-    Prioriza los lotes con fecha de vencimiento más próxima (FIFO por vencimiento).
+    Selecciona del stock las filas (lotes implícitos) necesarios para cumplir la combinación óptima.
+    Prioriza los productos con fecha de vencimiento más próxima (FIFO por vencimiento).
 
     Parámetros
     ----------
     optimal : list of tuples
         Lista de tuplas con formato [(item_type, amount), ...]
     usable_stock : pd.DataFrame
-        Subconjunto del stock con columnas ['item_type', 'expiration_date', 'cost', 'weight', 'quantity', ...]
+        Stock disponible, donde cada fila representa un lote implícito.
+        Debe tener columnas ['item_type', 'expiration_date', 'cost', 'weight', 'quantity'].
     flight_date : datetime
         Fecha del vuelo.
     
     Retorna
     -------
     trolley_stock : pd.DataFrame
-        DataFrame con las filas de stock a utilizar, incluyendo la cantidad tomada de cada lote.
+        DataFrame con las filas (lotes) que se usarán, incluyendo la cantidad tomada de cada una.
     """
 
     result_rows = []
 
     for item_type, required_qty in optimal:
-        # Lotes válidos del producto, ordenados por fecha de vencimiento
-        available_lots = usable_stock[
+        # Filtrar solo filas válidas (no vencidas)
+        available_rows = usable_stock[
             (usable_stock['item_type'] == item_type) &
             (usable_stock['expiration_date'] >= flight_date)
         ].sort_values(by='expiration_date')
 
-        for _, lot in available_lots.iterrows():
+        for _, row in available_rows.iterrows():
             if required_qty <= 0:
                 break
 
-            available_qty = lot['quantity']
+            available_qty = row['quantity']
             take_qty = min(required_qty, available_qty)
 
             result_rows.append({
-                'item_type': item_type,
-                'expiration_date': lot['expiration_date'],
-                'cost': lot['cost'],
-                'weight': lot['weight'],
+                'item_type': row['item_type'],
+                'expiration_date': row['expiration_date'],
+                'cost': row['cost'],
+                'weight': row['weight'],
                 'quantity_used': take_qty
             })
 
@@ -80,6 +77,7 @@ def filter_2(optimal: list, usable_stock: pd.DataFrame, flight_date: datetime) -
 
     trolley_stock = pd.DataFrame(result_rows)
     return trolley_stock
+
 
 
 def remove_from_stock(stock: pd.DataFrame, trolley_stock: pd.DataFrame) -> pd.DataFrame:
