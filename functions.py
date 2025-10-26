@@ -94,8 +94,7 @@ def remove_from_stock(
     stock: pd.DataFrame,
     trolley_stock: pd.DataFrame,
     key_cols: Tuple[str, ...] = ("item_type", "batch"),
-    qty_col: str = "quantity"
-) -> pd.DataFrame:
+    qty_col: str = "quantity") -> pd.DataFrame:
     """
     Subtract quantities from general stock using the items assigned to the trolley.
 
