@@ -144,6 +144,7 @@ HackMTY2025/
 ├── stock.xlsx                      # Current inventory data
 ├── vuelos.xlsx                     # Flight schedule data
 ├── result_hack_filtrado_con_peso_precioA.xlsx  # Historical sales data
+├── Probabilistic_Machine_Learning_Assisted_Optimizer.pdf  # Mathematical and Statistical Background and Foundations of our Proposal
 └── README.md
 ```
 
