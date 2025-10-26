@@ -89,8 +89,33 @@ def add_to_stock(stock: pd.DataFrame, addition: pd.DataFrame) -> pd.DataFrame:
 	pass
 
 
-def probabilties_model(passangers: int, flight_date: datatime, product: str) -> float:
-	return fore.get_sales_probability(product_id = product, target_date = flight_date)	
+def probabilties_model(passengers: int, flight_date: datetime, product: str, df: pd.DataFrame = None) -> float:
+    """
+    Calculate sales probability for a product on a specific flight date.
+    
+    Parameters:
+    -----------
+    passengers : int
+        Number of passengers (not currently used, but available for future logic)
+    flight_date : datetime
+        Date of the flight
+    product : str
+        Product ID
+    df : pd.DataFrame, optional
+        DataFrame with sales data. If None, uses default from forecast.py
+    
+    Returns:
+    --------
+    float : Sales probability (0.0 to 1.0)
+    """
+    if df is None:
+        # Use default dataset from forecast.py
+        result = fore.get_sales_probability(product_id=product, target_date=flight_date)
+    else:
+        result = fore.get_sales_probability(product_id=product, target_date=flight_date, df=df)
+    
+    # Extract probability from the returned dictionary
+    return result['probability']
 
 def time_model(total_products: int, distinct_products: int) -> float:
 	pass
