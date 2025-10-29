@@ -771,7 +771,7 @@ This project was developed for the HackMTY 2025 hackathon. Please check the spec
 
 - **gategroup**: For providing the challenge and datasets
 - **HackMTY 2025**: For organizing the hackathon
-- **Team Members**: [Add your team members here]
+- All the team involved in this project: Lilian, René, Jorge, Cristóbal.
 
 ---
 
